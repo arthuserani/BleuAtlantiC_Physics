@@ -1,0 +1,555 @@
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(rstatix)
+library(readxl)
+
+setwd("C:/Users/User/Documents/BleuAtlantic/Research")
+
+
+################################################################################
+#1) Import Leaves mass data
+
+feuilles <- excel_sheets("rough_data/suivi_masse_feuilles_final.xlsx")
+liste_tableaux <- lapply(feuilles, function(nom_feuille) {
+  read_excel("rough_data/suivi_masse_feuilles_final.xlsx", sheet = nom_feuille)
+})
+names(liste_tableaux) <- feuilles
+names(liste_tableaux) <- make.names(names(liste_tableaux), unique = TRUE)
+list2env(liste_tableaux, envir = .GlobalEnv)
+
+
+
+################################################################################
+#2) Clean and rearrange data
+
+colnames(Noir.Babin) <- make.names(as.character(Noir.Babin[1, ]), unique=TRUE)
+Noir.Babin <- Noir.Babin[2:49, ]
+Noir.Babin[Noir.Babin$X..de.perte.de.masse.1 == "100", c("X..de.perte.de.masse.1", "Perte.de.masse.1")] <- NA
+Noir.Babin[Noir.Babin$X..de.perte.de.masse.2 == "100", c("X..de.perte.de.masse.2", "Perte.de.masse.2")] <- NA
+
+
+colnames(Blanc.Babin) <- make.names(as.character(Blanc.Babin[1, ]), unique=TRUE)
+Blanc.Babin <- Blanc.Babin[2:49, ]
+Blanc.Babin[Blanc.Babin$X..de.perte.de.masse == "100", c("X..de.perte.de.masse", "Perte.de.masse")] <- NA
+Blanc.Babin[Blanc.Babin$X..de.perte.de.masse.1 == "100", c("X..de.perte.de.masse.1", "Perte.de.masse.1")] <- NA
+Blanc.Babin[Blanc.Babin$X..de.perte.de.masse.2 == "100", c("X..de.perte.de.masse.2", "Perte.de.masse.2")] <- NA
+
+colnames(Ptéro.RS) <- make.names(as.character(Ptéro.RS[1, ]), unique=TRUE)
+Ptéro.RS <- Ptéro.RS[2:25, ]
+Ptéro.RS[Ptéro.RS$X..de.perte.de.masse == "100", c("X..de.perte.de.masse", "Perte.de.masse")] <- NA
+Ptéro.RS[Ptéro.RS$X..de.perte.de.masse.1 == "100", c("X..de.perte.de.masse.1", "Perte.de.masse.1")] <- NA
+Ptéro.RS[Ptéro.RS$X..de.perte.de.masse.2 == "100", c("X..de.perte.de.masse.2", "Perte.de.masse.2")] <- NA
+
+colnames(Rouge.Babin) <- make.names(as.character(Rouge.Babin[1, ]), unique=TRUE)
+Rouge.Babin <- Rouge.Babin[2:49, ]
+Rouge.Babin[!is.na(Rouge.Babin$X..de.perte.de.masse) & Rouge.Babin$X..de.perte.de.masse == "100", 
+            c("X..de.perte.de.masse", "Perte.de.masse")] <- NA
+Rouge.Babin[!is.na(Rouge.Babin$X..de.perte.de.masse.1) & Rouge.Babin$X..de.perte.de.masse.1 == "100", 
+            c("X..de.perte.de.masse.1", "Perte.de.masse.1")] <- NA
+Rouge.Babin[!is.na(Rouge.Babin$X..de.perte.de.masse.2) & Rouge.Babin$X..de.perte.de.masse.2 == "100", 
+            c("X..de.perte.de.masse.2", "Perte.de.masse.2")] <- NA
+
+colnames(Rouge.RS) <- make.names(as.character(Rouge.RS[1, ]), unique=TRUE)
+Rouge.RS <- Rouge.RS[2:37, ]
+Rouge.RS[!is.na(Rouge.RS$X..de.perte.de.masse) & Rouge.RS$X..de.perte.de.masse == "100", 
+            c("X..de.perte.de.masse", "Perte.de.masse")] <- NA
+Rouge.RS[!is.na(Rouge.RS$X..de.perte.de.masse.1) & Rouge.RS$X..de.perte.de.masse.1 == "100", 
+         c("X..de.perte.de.masse.1", "Perte.de.masse.1")] <- NA
+Rouge.RS[!is.na(Rouge.RS$X..de.perte.de.masse.2) & Rouge.RS$X..de.perte.de.masse.2 == "100", 
+         c("X..de.perte.de.masse.2", "Perte.de.masse.2")] <- NA
+
+colnames(Noir.RS) <- make.names(as.character(Noir.RS[1, ]), unique=TRUE)
+Noir.RS <- Noir.RS[2:37, ]
+Noir.RS[Noir.RS$X..de.perte.de.masse == "100", c("X..de.perte.de.masse", "Perte.de.masse")] <- NA
+Noir.RS[Noir.RS$X..de.perte.de.masse.1 == "100", c("X..de.perte.de.masse.1", "Perte.de.masse.1")] <- NA
+Noir.RS[Noir.RS$X..de.perte.de.masse.2 == "100", c("X..de.perte.de.masse.2", "Perte.de.masse.2")] <- NA
+
+colnames(Blanc.RS) <- make.names(as.character(Blanc.RS[1, ]), unique=TRUE)
+Blanc.RS <- Blanc.RS[2:37, ]
+Blanc.RS[Blanc.RS$X..de.perte.de.masse == "100", c("X..de.perte.de.masse", "Perte.de.masse")] <- NA
+Blanc.RS[Blanc.RS$X..de.perte.de.masse.1 == "100", c("X..de.perte.de.masse.1", "Perte.de.masse.1")] <- NA
+Blanc.RS[Blanc.RS$X..de.perte.de.masse.2 == "100", c("X..de.perte.de.masse.2", "Perte.de.masse.2")] <- NA
+
+colnames(Répartition.sacs.parcelles.RS) <- make.names(as.character(Répartition.sacs.parcelles.RS[2, ]), unique=TRUE)
+Répartition.sacs.parcelles.RS <- Répartition.sacs.parcelles.RS[-c(1,2), ]
+
+colnames(Répartition.sacs.parcelles.Babi) <- make.names(as.character(Répartition.sacs.parcelles.Babi[2, ]), unique=TRUE)
+Répartition.sacs.parcelles.Babi <- Répartition.sacs.parcelles.Babi[-c(1,2), ]
+
+# Conversion des ID.sac et Replicat en entiers
+Répartition.sacs.parcelles.RS$ID.sac <- as.integer(as.numeric(Répartition.sacs.parcelles.RS$ID.sac))
+Répartition.sacs.parcelles.Babi$ID.sac <- as.integer(as.numeric(Répartition.sacs.parcelles.Babi$ID.sac))
+Répartition.sacs.parcelles.Babi$Replicat <- as.integer(as.numeric(Répartition.sacs.parcelles.Babi$Replicat))
+
+# Conversion des dates de dépose
+origin_date <- as.Date("1899-12-30")
+Répartition.sacs.parcelles.RS$Date.dépose <- as.Date(as.numeric(Répartition.sacs.parcelles.RS$Date.dépose), origin = origin_date)
+Répartition.sacs.parcelles.Babi$Date.dépose <- as.Date(as.numeric(Répartition.sacs.parcelles.Babi$Date.dépose), origin = origin_date)
+
+# Renommer les colonnes pour les harmoniser
+rename_col_if_exists <- function(df, old_name, new_name) {
+  if (old_name %in% names(df)) names(df)[names(df) == old_name] <- new_name
+  return(df)
+}
+
+Noir.RS <- rename_col_if_exists(Noir.RS, "Masse.sac.sec.T1.avec.étiquette", "Masse.sac.sec.T1")
+Noir.Babin <- rename_col_if_exists(Noir.Babin, "Masse.sac.sec.T1.sans.étiquette", "Masse.sac.sec.T1")
+Noir.RS <- rename_col_if_exists(Noir.RS, "Masse.sac.sec.T2.avec.étiquette", "Masse.sac.sec.T2")
+Noir.Babin <- rename_col_if_exists(Noir.Babin, "Masse.sac.sec.T2.sans.étiquette", "Masse.sac.sec.T2")
+Noir.RS <- rename_col_if_exists(Noir.RS, "Masse.sac.sec.T3.avec.étiquette", "Masse.sac.sec.T3")
+Noir.Babin <- rename_col_if_exists(Noir.Babin, "Masse.sac.sec.T3.sans.étiquette", "Masse.sac.sec.T3")
+
+# RS
+Répartition.sacs.parcelles.RS$ID.sac.full <- paste0(
+  Répartition.sacs.parcelles.RS$Espèce,
+  Répartition.sacs.parcelles.RS$ID.sac
+)
+
+# Babin
+Répartition.sacs.parcelles.Babi$ID.sac.full <- paste0(
+  Répartition.sacs.parcelles.Babi$Espèce,
+  Répartition.sacs.parcelles.Babi$ID.sac
+)
+
+##remplir les time points T2 et T3 dans Répartition
+#RS - T2
+# Liste des ID.sac relevés à T2 dans Noir.RS, Rouge.RS, etc.
+id_t2_RS <- c(
+  Noir.RS$ID.sac[!is.na(Noir.RS$Masse.sèche.T2.feuilles)],
+  Rouge.RS$ID.sac[!is.na(Rouge.RS$Masse.sèche.T2.feuilles)],
+  Blanc.RS$ID.sac[!is.na(Blanc.RS$Masse.sèche.T2.feuilles)],
+  Ptéro.RS$ID.sac[!is.na(Ptéro.RS$Masse.sèche.T2.feuilles)]
+)
+
+
+# Corriger Time.point uniquement si NA et si le sac est dans la liste T2
+Répartition.sacs.parcelles.RS$Time.point <- ifelse(
+  is.na(Répartition.sacs.parcelles.RS$Time.point) & Répartition.sacs.parcelles.RS$ID.sac.full %in% id_t2_RS,
+  "T2",
+  Répartition.sacs.parcelles.RS$Time.point
+)
+
+#RS - T3
+id_t3_RS <- c(
+  Noir.RS$ID.sac[!is.na(Noir.RS$Masse.sèche.T3.feuilles)],
+  Rouge.RS$ID.sac[!is.na(Rouge.RS$Masse.sèche.T3.feuilles)],
+  Blanc.RS$ID.sac[!is.na(Blanc.RS$Masse.sèche.T3.feuilles)],
+  Ptéro.RS$ID.sac[!is.na(Ptéro.RS$Masse.sèche.T3.feuilles)]
+)
+
+Répartition.sacs.parcelles.RS$Time.point <- ifelse(
+  is.na(Répartition.sacs.parcelles.RS$Time.point) & Répartition.sacs.parcelles.RS$ID.sac.full %in% id_t3_RS,
+  "T3",
+  Répartition.sacs.parcelles.RS$Time.point
+)
+
+#Babin - T2
+id_t2_Babin <- c(
+  Noir.Babin$ID.sac[!is.na(Noir.Babin$Masse.sèche.T2.feuilles)],
+  Rouge.Babin$ID.sac[!is.na(Rouge.Babin$Masse.sèche.T2.feuilles)],
+  Blanc.Babin$ID.sac[!is.na(Blanc.Babin$Masse.sèche.T2.feuilles)]
+)
+
+Répartition.sacs.parcelles.Babi$Time.point <- ifelse(
+  is.na(Répartition.sacs.parcelles.Babi$Time.point) & Répartition.sacs.parcelles.Babi$ID.sac.full %in% id_t2_Babin,
+  "T2",
+  Répartition.sacs.parcelles.Babi$Time.point
+)
+
+#Babin - T3
+id_t3_Babin <- c(
+  Noir.Babin$ID.sac[!is.na(Noir.Babin$Masse.sèche.T3.feuilles)],
+  Rouge.Babin$ID.sac[!is.na(Rouge.Babin$Masse.sèche.T3.feuilles)],
+  Blanc.Babin$ID.sac[!is.na(Blanc.Babin$Masse.sèche.T3.feuilles)]
+)
+
+id_t3_Babin <- unique(id_t3_Babin)
+
+Répartition.sacs.parcelles.Babi$Time.point <- ifelse(
+  is.na(Répartition.sacs.parcelles.Babi$Time.point) & Répartition.sacs.parcelles.Babi$ID.sac.full %in% id_t3_Babin,
+  "T3",
+  Répartition.sacs.parcelles.Babi$Time.point
+)
+
+#comptes T1, T2...
+table(Répartition.sacs.parcelles.RS$Time.point, useNA = "always") 
+table(Répartition.sacs.parcelles.Babi$Time.point, useNA = "always") #R15 perdu en T3 -> NA
+
+##Classer les sacs par time point / dates de sorties 
+#RS
+# Convertir les dates de relevé en format Date
+date_T1_RS <- list(
+  B = as.Date("2025-04-17"),
+  R = as.Date("2025-04-17"),
+  N  = as.Date("2025-04-17"),
+  P = as.Date("2025-05-02")
+)
+
+date_T2_RS <- list(
+  B = as.Date("2025-05-15"),
+  R = as.Date("2025-05-15"),
+  N  = as.Date("2025-05-15"),
+  P = as.Date("2025-05-21")
+)
+
+date_T3_RS <- list(
+  B = as.Date("2025-06-10"),
+  R = as.Date("2025-06-10"),
+  N  = as.Date("2025-06-10"),
+  P = as.Date("2025-06-10")
+)
+
+# Créer les listes d'ID.sac.full
+id_T1_RS <- c(
+  Noir.RS$ID.sac[!is.na(Noir.RS$Masse.sèche.T1.feuilles)],
+  Rouge.RS$ID.sac[!is.na(Rouge.RS$Masse.sèche.T1.feuilles)],
+  Blanc.RS$ID.sac[!is.na(Blanc.RS$Masse.sèche.T1.feuilles)],
+  Ptéro.RS$ID.sac[!is.na(Ptéro.RS$Masse.sèche.T1.feuilles)]
+)
+
+id_T2_RS <- c(
+  Noir.RS$ID.sac[!is.na(Noir.RS$Masse.sèche.T2.feuilles)],
+  Rouge.RS$ID.sac[!is.na(Rouge.RS$Masse.sèche.T2.feuilles)],
+  Blanc.RS$ID.sac[!is.na(Blanc.RS$Masse.sèche.T2.feuilles)],
+  Ptéro.RS$ID.sac[!is.na(Ptéro.RS$Masse.sèche.T2.feuilles)]
+)
+
+id_T3_RS <- c(
+  Noir.RS$ID.sac[!is.na(Noir.RS$Masse.sèche.T3.feuilles)],
+  Rouge.RS$ID.sac[!is.na(Rouge.RS$Masse.sèche.T3.feuilles)],
+  Blanc.RS$ID.sac[!is.na(Blanc.RS$Masse.sèche.T3.feuilles)],
+  Ptéro.RS$ID.sac[!is.na(Ptéro.RS$Masse.sèche.T3.feuilles)]
+)
+
+# Attribuer les dates en fonction de l'espèce (préfixe ID)
+get_espece <- function(id) substr(id, 1, 1)
+
+dates_sortie_RS <- data.frame(
+  ID.sac.full = c(id_T1_RS, id_T2_RS,id_T3_RS),
+  Time.point = c(rep("T1", length(id_T1_RS)), rep("T2", length(id_T2_RS)),rep("T3", length(id_T3_RS)))
+) %>%
+  mutate(
+    Espèce = get_espece(ID.sac.full),
+    Date.de.sortie = as.Date(mapply(function(tp, sp) {
+      ifelse(tp == "T1",date_T1_RS[[sp]],ifelse(tp=="T2",date_T2_RS[[sp]],date_T3_RS[[sp]]))
+    }, Time.point, Espèce))
+  )
+
+
+#Babin
+date_T1_Babi <- list(
+  B = as.Date("2025-04-16"),
+  R = as.Date("2025-04-10"),
+  N  = as.Date("2025-04-10")
+)
+
+date_T2_Babi <- list(
+  B = as.Date("2025-05-14"),
+  R = as.Date("2025-05-06"),
+  N  = as.Date("2025-05-06")
+)
+
+date_T3_Babi <- list(
+  B = as.Date("2025-06-12"),
+  R = as.Date("2025-06-04"),
+  N  = as.Date("2025-06-04")
+)
+
+id_T1_Babi <- c(
+  Noir.Babin$ID.sac[!is.na(Noir.Babin$Masse.sèche.T1.feuilles)],
+  Rouge.Babin$ID.sac[!is.na(Rouge.Babin$Masse.sèche.T1.feuilles)],
+  Blanc.Babin$ID.sac[!is.na(Blanc.Babin$Masse.sèche.T1.feuilles)]
+)
+
+id_T2_Babi <- c(
+  Noir.Babin$ID.sac[!is.na(Noir.Babin$Masse.sèche.T2.feuilles)],
+  Rouge.Babin$ID.sac[!is.na(Rouge.Babin$Masse.sèche.T2.feuilles)],
+  Blanc.Babin$ID.sac[!is.na(Blanc.Babin$Masse.sèche.T2.feuilles)]
+)
+
+id_T3_Babi <- c(
+  Noir.Babin$ID.sac[!is.na(Noir.Babin$Masse.sèche.T3.feuilles)],
+  Rouge.Babin$ID.sac[!is.na(Rouge.Babin$Masse.sèche.T3.feuilles)],
+  Blanc.Babin$ID.sac[!is.na(Blanc.Babin$Masse.sèche.T3.feuilles)]
+)
+
+dates_sortie_Babi <- data.frame(
+  ID.sac.full = c(id_T1_Babi, id_T2_Babi,id_T3_Babi),
+  Time.point = c(rep("T1", length(id_T1_Babi)), rep("T2", length(id_T2_Babi)),rep("T3", length(id_T3_Babi)))
+) %>%
+  mutate(
+    Espèce = get_espece(ID.sac.full),
+    Date.de.sortie = as.Date(mapply(function(tp, sp) {
+      ifelse(tp == "T1",date_T1_Babi[[sp]],ifelse(tp=="T2",date_T2_Babi[[sp]],date_T3_Babi[[sp]]))
+    }, Time.point, Espèce))
+  )
+
+#fusion
+# RS
+Répartition.sacs.parcelles.RS <- Répartition.sacs.parcelles.RS %>%
+  left_join(dates_sortie_RS %>% select(ID.sac.full, Date.de.sortie), by = "ID.sac.full")
+
+# Babi
+Répartition.sacs.parcelles.Babi <- Répartition.sacs.parcelles.Babi %>%
+  left_join(dates_sortie_Babi %>% select(ID.sac.full, Date.de.sortie), by = "ID.sac.full")
+
+liste_df <- list(
+  Noir.Babin = Noir.Babin,
+  Blanc.Babin = Blanc.Babin,
+  Rouge.Babin = Rouge.Babin,
+  Noir.RS = Noir.RS,
+  Blanc.RS = Blanc.RS,
+  Rouge.RS = Rouge.RS,
+  Ptero.RS = Ptéro.RS
+)
+
+cols_num <- c(
+  "Masse.sac.vide..g.",
+  "Masse.sèche.initiale..g.",
+  "Masse.sèche.T1.feuilles",
+  "Masse.sac.sec.T1",
+  "Perte.de.masse",
+  "X..de.perte.de.masse",
+  "Masse.sèche.T2.feuilles",
+  "Masse.sac.sec.T2",
+  "Perte.de.masse.1",
+  "X..de.perte.de.masse.1",  
+  "Masse.sèche.T3.feuilles",
+  "Masse.sac.sec.T3",
+  "Perte.de.masse.2",
+  "X..de.perte.de.masse.2"
+)
+
+
+df_harmonises <- lapply(names(liste_df), function(nom) {
+  df <- liste_df[[nom]]
+  site <- ifelse(grepl("Babin", nom), "Babin", "RS")
+  
+  df %>%
+    select(where(~!all(is.na(.)))) %>%
+    select(-matches("^NA\\.$|^Station$")) %>%
+    rename_with(~ gsub("\\.avec\\.étiquette|\\.sans\\.étiquette", "", .x), 
+                matches("Masse\\.sac\\.sec\\.T[123]")) %>%
+    mutate(across(any_of(cols_num), ~ as.numeric(.), .names = "{.col}")) %>%
+    mutate(
+      Espèce = substr(ID.sac, 1, 1),
+      Site = site,
+      ID.sac.full = ID.sac
+    ) %>%
+    left_join(
+      if (site == "RS") {
+        Répartition.sacs.parcelles.RS %>% select(ID.sac.full, Station,Time.point,Date.dépose,Date.de.sortie.y)
+      } else {
+        Répartition.sacs.parcelles.Babi %>%
+          mutate(Station = paste0(Station, Replicat)) %>%
+          select(ID.sac.full, Station,Time.point,Date.dépose,Date.de.sortie.y)
+      },
+      by = "ID.sac.full"
+    )
+}) %>%
+  setNames(names(liste_df))
+
+#Fusion des fichiers harmonisés
+data_mesures <- bind_rows(df_harmonises, .id = "Source")
+data_mesures <- data_mesures %>% select(-ID.sac.full, -Source)
+colnames(data_mesures) <- c("ID.bag", "Empty.bag.mass", "Initial.dry.mass", "Dry.leaves.mass.T1","Dry.bag.mass.T1", "Mass.loss.T1", "Percent.mass.loss.T1", "Dry.leaves.mass.T2","Dry.bag.mass.T2", "Mass.loss.T2", "Percent.mass.loss.T2","Dry.leaves.mass.T3","Dry.bag.mass.T3", "Mass.loss.T3", "Percent.mass.loss.T3","Species","Site","Station","Time.point","Drop.date","Retrieve.date" )
+
+#rajouter la masse initiale de feuilles,
+# ne conserver qu'une valeur de masse finale, de perte de masse, et de %perte,
+# recalculer le %perte (Calcul.percent.loss) - la masse de sac soustraite est celle sèche initiale si on l'a (pour les N de Babin), sinon la finale.
+Data_mass_loss <- data_mesures%>%
+  mutate(
+    Station_simpl = case_when(
+      (substr(Station, 1, 1))=="B"& Site=="Babin" ~ "B1",
+      (substr(Station, 1, 1))=="H"& Site=="Babin" ~ "B2",
+      (substr(Station, 1, 1))=="T"& Site=="Babin" ~ "B3",
+      (substr(Station, 1, 1))=="A"& Site=="Babin" ~ "B4",
+      (substr(Station, 1, 1))=="B"& Site=="RS" ~ "RS1",
+      (substr(Station, 1, 1))=="H"& Site=="RS" ~ "RS2",
+      (substr(Station, 1, 1))=="F"& Site=="RS" ~ "RS3")  # noms officiels A1=Avicennia-1 → B4 (Babin4) , B3 (Bas3)→ B1 (Babin1), etc.
+  ) %>%
+  mutate(
+    Empty.bag.mass = as.numeric(Empty.bag.mass),
+    Dry.bag.mass.T1 = as.numeric(Dry.bag.mass.T1),
+    Dry.bag.mass.T2 = as.numeric(Dry.bag.mass.T2),
+    Dry.bag.mass.T3 = as.numeric(Dry.bag.mass.T3),
+    
+    Used.bag.mass = case_when(
+      !is.na(Empty.bag.mass) ~ Empty.bag.mass,
+      !is.na(Dry.bag.mass.T1) ~ Dry.bag.mass.T1,
+      !is.na(Dry.bag.mass.T2) ~ Dry.bag.mass.T2,
+      !is.na(Dry.bag.mass.T3) ~ Dry.bag.mass.T3
+    ),
+    
+    Initial.leaves.dry.mass = as.numeric(Initial.dry.mass) - Used.bag.mass
+  ) %>%
+  filter(!is.na(Initial.leaves.dry.mass)) %>%
+  mutate(Percent.mass.loss = case_when(
+    !is.na(Percent.mass.loss.T1) ~ Percent.mass.loss.T1,
+    !is.na(Percent.mass.loss.T2) ~ Percent.mass.loss.T2,
+    !is.na(Percent.mass.loss.T3) ~ Percent.mass.loss.T3),
+    Mass.loss =  case_when(
+      !is.na(Mass.loss.T1) ~ Mass.loss.T1,
+      !is.na(Mass.loss.T2) ~ Mass.loss.T2,
+      !is.na(Mass.loss.T3) ~ Mass.loss.T3),
+    Remaining.leaves.mass =  case_when(
+      !is.na(Dry.leaves.mass.T1) ~ Dry.leaves.mass.T1,
+      !is.na(Dry.leaves.mass.T2) ~ Dry.leaves.mass.T2,
+      !is.na(Dry.leaves.mass.T3) ~ Dry.leaves.mass.T3)) %>%
+  mutate(Calcul.percent.loss = 100*(Initial.leaves.dry.mass-Remaining.leaves.mass)/Initial.leaves.dry.mass) %>%
+  select(-Initial.dry.mass,-Empty.bag.mass,-Dry.bag.mass.T1,-Dry.bag.mass.T2,-Dry.bag.mass.T3,
+         -Percent.mass.loss.T1,-Percent.mass.loss.T2,-Percent.mass.loss.T3,
+         -Mass.loss.T1,-Mass.loss.T2,-Mass.loss.T3,
+         -Dry.leaves.mass.T1,-Dry.leaves.mass.T2,-Dry.leaves.mass.T3,
+         -Used.bag.mass) 
+
+#Convertir les dates 
+Data_mass_loss <- Data_mass_loss %>%
+  mutate(
+    Drop.date = as.Date(Drop.date),
+    Retrieve.date = as.Date(Retrieve.date),
+    Time.days = as.numeric(Retrieve.date - Drop.date)
+  )
+
+# Générer les lignes T0 (valeur 0 de perte)
+t0_data <- Data_mass_loss %>%
+  group_by(Site, Station_simpl, Species) %>%
+  summarise(
+    Calcul.percent.loss = 0,
+    Time.point = "T0",
+    Time.days = 0,
+    .groups = "drop"
+  )
+Data_mass_loss <- bind_rows(Data_mass_loss, t0_data)
+
+#transformer Species en facteur avec les bons labels d'espèce
+Data_mass_loss <- Data_mass_loss %>%
+  mutate(Species = recode(Species,
+                          "B" = "Laguncularia",
+                          "N" = "Avicennia",
+                          "R" = "Rhizophora",
+                          "P" = "Pterocarpus"))  
+
+
+
+#Plutôt utiliser les valeurs de % recalculées = Calcul.percent.loss
+
+################################################################################
+
+## 3) Visualisation des pertes de masse au cours du temps : à partir de Data_mass_loss
+
+
+# 1. Résumé statistique
+data_summary <- Data_mass_loss %>%
+  group_by(Site, Station_simpl, Species, Time.days) %>%
+  summarise(
+    moyenne = mean(Calcul.percent.loss, na.rm = TRUE),
+    sd = sd(Calcul.percent.loss, na.rm = TRUE),
+    n = n(),
+    se = sd / sqrt(n),
+    .groups = "drop"
+  )
+
+## 2. Tukey test
+# Associer Time.point à Time.days
+time_point_map <- Data_mass_loss %>%
+  distinct(Site, Station_simpl, Species, Time.point, Time.days) %>%
+  group_by(Site, Station_simpl, Species, Time.point) %>%
+  summarise(Time.days = mean(Time.days, na.rm = TRUE), .groups = "drop")
+
+# Calcul du Tukey HSD
+tukey_results <- Data_mass_loss %>%
+  #filter(Time.point != "T0") %>%
+  group_by(Site, Station_simpl, Species) %>%
+  tukey_hsd(Calcul.percent.loss ~ Time.point) %>%
+  ungroup()%>%
+  mutate(Species=as.factor(Species))
+
+# Ajouter les coordonnées x, xend
+tukey_results <- tukey_results %>%
+  left_join(time_point_map, by = c("Site", "Station_simpl", "Species", "group1" = "Time.point")) %>%
+  rename(x = Time.days) %>%
+  left_join(time_point_map, by = c("Site", "Station_simpl", "Species", "group2" = "Time.point")) %>%
+  rename(xend = Time.days)
+
+# Ajout propre du label et des positions en y
+tukey_results <- tukey_results %>%
+  group_by(Site, Station_simpl, Species) %>%
+  mutate(
+    y.position = seq(50, 65, length.out = n()),
+    label = p.adj.signif   # <-- ATTENTION ICI : ce doit être une colonne simple
+  ) %>%
+  ungroup()
+
+# ne garder que les ns
+tukey_plot_ns_noPtero <- tukey_results %>%
+  filter(p.adj.signif == "ns")%>%
+  filter(Species != "Pterocarpus")
+
+
+# 3. Fonction pour un graphe par station
+plot_station <- function(station_code) {
+  data_plot <- data_summary %>% filter(Station_simpl == station_code)
+  tukey_plot <- tukey_results %>% filter(Station_simpl == station_code)
+  print(levels(factor(data_plot$Species)))
+  ggplot(data_plot, aes(x = Time.days, y = moyenne,
+                        color = Species,
+                        linetype = Site,
+                        group = interaction(Species, Site))) +
+    geom_line(linewidth = 1.2) +
+    geom_point(size = 3) +
+    geom_errorbar(aes(ymin = moyenne - se, ymax = moyenne + se), width = 2) +
+    stat_pvalue_manual(
+      tukey_plot_ns_noPtero,
+      label = "label",
+      xmin = "x",
+      xmax = "xend",
+      y.position = "y.position",
+      tip.length = 0.01,
+      color="Species"
+    ) +
+    labs(
+      title = station_code,
+      x = "Days since deployment",
+      y = "Percentage of mass loss",
+      color = "Species"
+    ) +
+    scale_y_continuous(limits = c(0, 70), expand = expansion(mult = c(0, 0.05))) +
+    guides(linetype = "none") + 
+    theme_minimal(base_size = 14) +
+    theme(
+      legend.position = "bottom",
+      plot.title = element_text(face = "bold", hjust = 0.5)
+    )+
+    scale_color_manual(
+      values = c(
+        "Laguncularia" = "grey50",
+        "Avicennia" = "black",
+        "Rhizophora" = "red",
+        "Pterocarpus" = "green"
+      ),
+      guide = guide_legend(override.aes = list(linetype = 1))
+    )
+}
+
+# 4. Générer les 7 graphiques (4 pour Babin ; 3 pour RS)
+#Percentage of Mass Loss / Time.Point, Per Station and per Species
+stations_babin <- c("B1", "B2", "B3", "B4")
+stations_rs <- c("RS1", "RS2", "RS3")
+
+plots_babin <- lapply(stations_babin, plot_station)
+plots_rs <- lapply(stations_rs, plot_station)
+
+# 5. Afficher les graphiques 
+library(patchwork)
+
+# Arranger les plots : 4 de Babin en haut, 3 de RS en bas
+(plots_babin[[1]] | plots_babin[[2]] | plots_babin[[3]] | plots_babin[[4]]) /
+  (plots_rs[[1]] | plots_rs[[2]] | plots_rs[[3]])+ plot_layout(guides = "collect") & theme(legend.position = "bottom")
+
+#=====> 1) mettre en couleur ou déplacer les barres de tukey
+#puis 5) faire pareil en mass loss
+#evolution jamais significative pour Ptero ? je ne fais donc pas figurer les résultats Tukey
+#PB : il y a les mêmes barres de tukey sur tous les plots (trop de ns par rapport à la réalité !)

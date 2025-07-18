@@ -4,6 +4,8 @@ library(ggplot2)
 library(ggpubr)
 library(rstatix)
 library(readxl)
+library(tikzDevice)
+library(patchwork)
 
 setwd("C:/Users/User/Documents/BleuAtlantic/Research")
 
@@ -452,77 +454,78 @@ data_summary <- Data_mass_loss %>%
     .groups = "drop"
   )
 
-## 2. Tukey test
-# Associer Time.point à Time.days
-time_point_map <- Data_mass_loss %>%
-  distinct(Site, Station_simpl, Species, Time.point, Time.days) %>%
-  group_by(Site, Station_simpl, Species, Time.point) %>%
-  summarise(Time.days = mean(Time.days, na.rm = TRUE), .groups = "drop")
-
-# Calcul du Tukey HSD
-tukey_results <- Data_mass_loss %>%
-  #filter(Time.point != "T0") %>%
-  group_by(Site, Station_simpl, Species) %>%
-  tukey_hsd(Calcul.percent.loss ~ Time.point) %>%
-  ungroup()%>%
-  mutate(Species=as.factor(Species))
-
-# Ajouter les coordonnées x, xend
-tukey_results <- tukey_results %>%
-  left_join(time_point_map, by = c("Site", "Station_simpl", "Species", "group1" = "Time.point")) %>%
-  rename(x = Time.days) %>%
-  left_join(time_point_map, by = c("Site", "Station_simpl", "Species", "group2" = "Time.point")) %>%
-  rename(xend = Time.days)
-
-# Ajout propre du label et des positions en y
-tukey_results <- tukey_results %>%
-  group_by(Site, Station_simpl, Species) %>%
-  mutate(
-    y.position = seq(50, 65, length.out = n()),
-    label = p.adj.signif   # <-- ATTENTION ICI : ce doit être une colonne simple
-  ) %>%
-  ungroup()
-
-# ne garder que les ns
-tukey_plot_ns_noPtero <- tukey_results %>%
-  filter(p.adj.signif == "ns")%>%
-  filter(Species != "Pterocarpus")
+# ## 2. Tukey test
+# # Associer Time.point à Time.days
+# time_point_map <- Data_mass_loss %>%
+#   distinct(Site, Station_simpl, Species, Time.point, Time.days) %>%
+#   group_by(Site, Station_simpl, Species, Time.point) %>%
+#   summarise(Time.days = mean(Time.days, na.rm = TRUE), .groups = "drop")
+# 
+# # Calcul du Tukey HSD
+# tukey_results <- Data_mass_loss %>%
+#   group_by(Site, Station_simpl, Species) %>%
+#   tukey_hsd(Calcul.percent.loss ~ Time.point) %>%
+#   ungroup()%>%
+#   mutate(Species=as.factor(Species))
+# 
+# #Ajouter les coordonnées x, xend
+# tukey_results <- tukey_results %>%
+#   left_join(time_point_map, by = c("Site", "Station_simpl", "Species", "group1" = "Time.point")) %>%
+#   rename(x = Time.days) %>%
+#   left_join(time_point_map, by = c("Site", "Station_simpl", "Species", "group2" = "Time.point")) %>%
+#   rename(xend = Time.days)
+# 
+# # ne garder que les ns
+# tukey_results_ns_noPtero <- tukey_results %>%
+#   filter(p.adj.signif == "ns")%>%
+#   filter(Species != "Pterocarpus") %>%
+#   group_by(Site, Station_simpl) %>%
+#   mutate(
+#     y.position = seq(50, 65, length.out = n()),
+#     label = p.adj.signif
+#    ) %>%
+#   ungroup()
 
 
 # 3. Fonction pour un graphe par station
 plot_station <- function(station_code) {
   data_plot <- data_summary %>% filter(Station_simpl == station_code)
-  tukey_plot <- tukey_results %>% filter(Station_simpl == station_code)
-  print(levels(factor(data_plot$Species)))
-  ggplot(data_plot, aes(x = Time.days, y = moyenne,
-                        color = Species,
-                        linetype = Site,
-                        group = interaction(Species, Site))) +
-    geom_line(linewidth = 1.2) +
-    geom_point(size = 3) +
-    geom_errorbar(aes(ymin = moyenne - se, ymax = moyenne + se), width = 2) +
-    stat_pvalue_manual(
-      tukey_plot_ns_noPtero,
-      label = "label",
-      xmin = "x",
-      xmax = "xend",
-      y.position = "y.position",
-      tip.length = 0.01,
-      color="Species"
-    ) +
+  raw_data <- Data_mass_loss %>% filter(Station_simpl == station_code)
+  
+  ggplot() +
+    # Points individuels
+    geom_jitter(data = raw_data, aes(x = Time.days, y = Calcul.percent.loss, color = Species, group = interaction(Species, Site)),
+                width = 0.5, alpha = 0.6, size = 2, shape = 16) +
+    
+    # Ligne de moyenne
+    geom_line(data = data_plot, aes(x = Time.days, y = moyenne,
+                                    color = Species, linetype = Site,
+                                    group = interaction(Species, Site)),
+              linewidth = 1.2) +
+    
+    # Point moyen
+    geom_point(data = data_plot, aes(x = Time.days, y = moyenne, color = Species,
+                                     group = interaction(Species, Site)),
+               size = 3) +
+    
+    # Barres d’erreur
+    geom_errorbar(data = data_plot, aes(x = Time.days, ymin = moyenne - se, ymax = moyenne + se,
+                                        color = Species, group = interaction(Species, Site)),
+                  width = 2) +
+    
     labs(
       title = station_code,
       x = "Days since deployment",
-      y = "Percentage of mass loss",
+      y =  "Percentage of mass loss",
       color = "Species"
     ) +
-    scale_y_continuous(limits = c(0, 70), expand = expansion(mult = c(0, 0.05))) +
+    scale_y_continuous(limits = c(0,80), expand = expansion(mult = c(0, 0.05))) +
     guides(linetype = "none") + 
     theme_minimal(base_size = 14) +
     theme(
       legend.position = "bottom",
       plot.title = element_text(face = "bold", hjust = 0.5)
-    )+
+    ) +
     scale_color_manual(
       values = c(
         "Laguncularia" = "grey50",
@@ -542,14 +545,56 @@ stations_rs <- c("RS1", "RS2", "RS3")
 plots_babin <- lapply(stations_babin, plot_station)
 plots_rs <- lapply(stations_rs, plot_station)
 
-# 5. Afficher les graphiques 
-library(patchwork)
+# Supprimer les axes Y sauf pour B1 et RS1
+plots_babin[[2]] <- plots_babin[[2]] + theme(axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank())
+plots_babin[[3]] <- plots_babin[[3]] + theme(axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank())
+plots_babin[[4]] <- plots_babin[[4]] + theme(axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank())
 
-# Arranger les plots : 4 de Babin en haut, 3 de RS en bas
-(plots_babin[[1]] | plots_babin[[2]] | plots_babin[[3]] | plots_babin[[4]]) /
-  (plots_rs[[1]] | plots_rs[[2]] | plots_rs[[3]])+ plot_layout(guides = "collect") & theme(legend.position = "bottom")
+plots_rs[[2]] <- plots_rs[[2]] + theme(axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank())
+plots_rs[[3]] <- plots_rs[[3]] + theme(axis.title.y = element_blank(), axis.text.y = element_blank(), axis.ticks.y = element_blank())
 
-#=====> 1) mettre en couleur ou déplacer les barres de tukey
-#puis 5) faire pareil en mass loss
-#evolution jamais significative pour Ptero ? je ne fais donc pas figurer les résultats Tukey
-#PB : il y a les mêmes barres de tukey sur tous les plots (trop de ns par rapport à la réalité !)
+# Retirer les légendes de tous les sous-plots visibles
+plots_babin <- lapply(plots_babin, function(p) p + theme(legend.position = "none"))
+plots_rs <- lapply(plots_rs, function(p) p + theme(legend.position = "none"))
+# extraire la légende
+legend_plot <- plot_station("RS3") + 
+  guides(color = guide_legend(nrow = 4)) +
+  theme(
+  legend.position = "bottom",
+  legend.title = element_text(size = 14),
+  legend.text = element_text(size = 12),
+  legend.key.size = unit(0.4, "cm"),
+  legend.spacing.y = unit(0.05, "cm")
+)
+legend <- get_legend(legend_plot)
+
+# Combiner avec patchwork
+row1 <- plots_babin[[1]] | plots_babin[[2]] | plots_babin[[3]] | plots_babin[[4]]
+# 2e ligne (RS1 à RS3 + légende)
+row2 <- plots_rs[[1]] | plots_rs[[2]] | plots_rs[[3]] | wrap_elements(full = legend)
+
+combined_plot <- row1 / row2 +
+  plot_layout(heights = c(1, 1))  # équilibre vertical (tu peux ajuster)
+
+# Affichage
+windows()  
+print(combined_plot)
+
+
+#6. exporter en .tex
+
+tikz("Chapitre_Bio/plot_mass_loss.tex", standAlone = TRUE, width = 10, height = 7)
+#change directory if necessary
+
+print(combined_plot)
+
+dev.off()
+
+
+#Afficher dans la légende : “Les barres représentent ± erreur standard (SE), n = 4.
+
+#attention valeurs aberrantes cf les comm dans le tableur original
+
+#une valeur bizarre en T3 B1 Avicennia, <30 ? représentée mais impossible à retrouver dans les tables
+
+#Pterocarpus RS3 T3 pourcentage très faible ? 2 valeurs sur 4 négatives = prise de masse !

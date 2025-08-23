@@ -1,0 +1,78 @@
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(rstatix)
+library(readxl)
+library(tikzDevice)
+library(patchwork)
+library(tidyverse)
+library(ggtext)
+library(lubridate)
+
+
+setwd("C:/Users/User/Documents/BleuAtlantic/Research")
+
+#Import data
+data_temperature <- read.csv("rough_data/Temperatures_final.csv",skip = 1, header=TRUE)
+data_water <- read.csv("rough_data/mesures_hebdo_final.csv", skip = 1,header=TRUE)
+data_soil <- read.csv("rough_data/Soil_parameters_final.csv", header=TRUE)
+
+#1. Clean Temperature Data
+data_temperature <- data_temperature%>% mutate(Study.Site=as.factor(Localisation),
+                                               Station=paste0(Station,Parcelle),
+                                               Date=as.Date(Date,format = "%d/%m/%Y"),
+                                               Temperature.1=as.numeric(gsub(",", ".",Température.1)),
+                                               Temperature.2=as.numeric(gsub(",", ".",Température.2)),
+                                               Temperature.3=as.numeric(gsub(",", ".",Température.3)),
+                                               Temperature.4=as.numeric(gsub(",", ".",Température.4)),
+                                               Mean.Temperature = as.numeric(gsub(",", ".",Moyenne)), #rowMeans(select(., Temperature.1, Temperature.2, Temperature.3, Temperature.4), na.rm = TRUE),
+                                               Immersion=as.factor(Immergé)) %>%
+  dplyr::select(Study.Site,Station,Date,Heure,Temperature.1,Temperature.2,Temperature.3,Temperature.4,Mean.Temperature,Immersion,Observation)
+
+#Mean.Temperature : recalculer la moyenne des 4 ?
+
+#2. Clean Weekly data of Salinity (g/L) and Groundwater level (cm under soil surface)
+data_water <- data_water%>% mutate(Study.Site=as.factor(Localisation),
+                                   Date=as.Date(Date,format = "%d/%m/%Y"),
+                                   Groundwater.Depth.cm=as.numeric(Profondeur.de.nappe..cm.),
+                                   Salinity.Piezo.30cm=as.numeric(Salinité.à..30cm.piézo..g.L.),
+                                   Salinity.Piezo.Surface=as.numeric(Salinité.en.surface.piézo..g.L.),
+                                   Salinity.Surface=as.numeric(Salinité.en.surface.dehors..g.L.),
+                                   Salinity.Pore.Water.30cm=as.numeric(Salinité.eau.inter..30cm..g.L.)
+                                   )%>%
+  dplyr::select(Study.Site,Station,Parcelle,Date,Groundwater.Depth.cm,Salinity.Piezo.30cm,Salinity.Piezo.Surface,Salinity.Surface,Salinity.Pore.Water.30cm)
+
+data_water$Parcelle[data_water$Study.Site == "RS"] <- data_water$Station[data_water$Study.Site == "RS"]
+data_water$Station <-data_water$Parcelle
+data_water<-data_water%>% dplyr::select(-Parcelle) 
+
+#3. Clean Monthly data of pH, DO and redox 
+data_soil$pH.piezo.30cm <- gsub(",", ".", data_soil$pH.piezo.30cm)
+data_soil$DO.piezo.30cm <- gsub(",", ".", data_soil$DO.piezo.30cm)
+data_soil$redox.piezo.30cm <- gsub(",", ".", data_soil$redox.piezo.30cm)
+data_soil$pH.eau.de.surface <- gsub(",", ".", data_soil$pH.eau.de.surface)
+data_soil$DO.eau.de.surface <- gsub(",", ".", data_soil$DO.eau.de.surface)
+data_soil$redox.eau.de.surface <- gsub(",", ".", data_soil$redox.eau.de.surface)
+data_soil$pH.eau.inter <- gsub(",", ".", data_soil$pH.eau.inter)
+data_soil$DO.eau.inter <- gsub(",", ".", data_soil$DO.eau.inter)
+data_soil$redox.eau.inter <- gsub(",", ".", data_soil$redox.eau.inter)
+
+data_soil <- data_soil%>% mutate(Study.Site=as.factor(Localisation),
+                                   Date=as.Date(Date,format = "%d/%m/%Y"),
+                                   pH.Piezo=as.numeric(pH.piezo.30cm),
+                                   DO.Piezo=as.numeric(DO.piezo.30cm),
+                                   redox.Piezo=as.numeric(redox.piezo.30cm),
+                                   pH.Surface=as.numeric(pH.eau.de.surface),
+                                   DO.Surface=as.numeric(DO.eau.de.surface),
+                                   redox.Surface=as.numeric(redox.eau.de.surface),
+                                   pH.Inter=as.numeric(pH.eau.inter),
+                                   DO.Inter=as.numeric(DO.eau.inter),
+                                   redox.Inter=as.numeric(redox.eau.inter)
+                                   
+)%>%
+  dplyr::select(Study.Site,Station,Parcelle,Date,pH.Piezo,DO.Piezo,redox.Piezo,pH.Surface,DO.Surface,redox.Surface,pH.Inter,DO.Inter,redox.Inter)
+
+data_soil$Parcelle[data_soil$Study.Site == "RS"] <- data_soil$Station[data_soil$Study.Site == "RS"]
+data_soil$Station <-data_soil$Parcelle
+data_soil<-data_soil%>% dplyr::select(-Parcelle) 

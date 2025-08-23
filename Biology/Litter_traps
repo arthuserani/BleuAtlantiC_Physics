@@ -1,0 +1,255 @@
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(rstatix)
+library(readxl)
+library(tikzDevice)
+library(patchwork)
+library(tidyverse)
+library(ggtext)
+
+setwd("C:/Users/User/Documents/BleuAtlantic/Research")
+
+#Import data
+data_traps <- read.csv("rough_data/Litter_traps_final.csv", header=TRUE)
+
+#Convert types
+data_traps <- data_traps %>%
+  mutate(
+    Masse_total = as.numeric(gsub(",", ".", Masse_total)),
+    Masse_feuilles = as.numeric(gsub(",", ".", Masse_feuilles)),
+    Masse_bois = as.numeric(gsub(",", ".", Masse_bois)),
+    Masse_fleurs = as.numeric(gsub(",", ".", Masse_fleurs)),
+    Masse_fruits = as.numeric(gsub(",", ".", Masse_fruits)),
+    Masse_racines = as.numeric(gsub(",", ".", Masse_racines)),
+    Station = as.factor(Station),
+    Parcelle = as.factor(Parcelle),
+    position = as.factor(position),
+    Date_releve = as.Date(
+      paste0(sprintf("%02d", as.numeric(sub("\\..*", "", data_traps$Date_releve))),
+             "-",
+             sprintf("%02d", as.numeric(sub(".*\\.", "", data_traps$Date_releve))),
+             "-2025"),
+      format = "%d-%m-%Y"),
+    Time_point = as.factor(Time_point),
+    Study_Site = as.factor(Study_Site)
+  )
+
+#fill NAs with 0
+data_traps[is.na(data_traps)] <- 0
+
+# Filtrer uniquement les pièges en position suspendue
+data_susp <- data_traps %>%
+  filter(position == "suspendu")
+
+
+# #------------------------------------------------------------------------------------
+# ##1 graphe par Time Point
+# # Calcul des moyennes par Study_Site, Station, Time_point
+# data_moyenne <- data_susp %>%
+#   group_by(Study_Site, Station, Time_point) %>%
+#   summarise(across(starts_with("Masse_"), mean, na.rm = TRUE), .groups = "drop")
+# 
+# # Mise au format long
+# data_long <- data_moyenne %>%
+#   pivot_longer(cols = starts_with("Masse_"),
+#                names_to = "Type_masse",
+#                values_to = "Valeur_masse") %>%
+#   filter(Type_masse != "Masse_total") %>%
+#   mutate(ID = Station)
+# 
+# # Fonction pour générer un plot pour un site et un time_point
+# make_plot <- function(site, time_point) {
+#   data_long %>%
+#     filter(Study_Site == site, Time_point == time_point) %>%
+#     ggplot(aes(x = ID, y = Valeur_masse, fill = Type_masse)) +
+#     geom_bar(stat = "identity") +
+#     labs(title = paste(site, "-", time_point), x = "Station", y = "Mean mass (g)") +
+#     theme_minimal() +
+#     theme(axis.text.x = element_text(angle = 45, hjust = 1))
+# }
+# 
+# # Créer les 6 plots
+# plots_babin <- map(c("T1", "T2", "T3"), ~ make_plot("Babin", .x))
+# plots_rs    <- map(c("T1", "T2", "T3"), ~ make_plot("RS", .x))
+# 
+# windows()
+# # Assembler en 2 lignes avec patchwork
+# (plots_babin[[1]] + plots_babin[[2]] + plots_babin[[3]]) /
+#   (plots_rs[[1]] + plots_rs[[2]] + plots_rs[[3]]) +
+#   plot_layout(guides = "collect") & theme(legend.position = "bottom")
+#------------------------------------------------------------------------------------
+
+
+# 1. Renommer les stations selon le site
+data_susp <- data_susp %>%
+  mutate(
+    Station = case_when(
+      Study_Site == "Babin" & Station == "B" ~ "B1",
+      Study_Site == "Babin" & Station == "H" ~ "B2",
+      Study_Site == "Babin" & Station == "T" ~ "B3",
+      Study_Site == "Babin" & Station == "A" ~ "B4",
+      Study_Site == "RS" & Station == "B" ~ "RS1",
+      Study_Site == "RS" & Station == "H" ~ "RS2",
+      Study_Site == "RS" & Station == "F" ~ "RS3",
+      TRUE ~ Station
+    )
+  )
+
+# 2. Moyennes
+data_moyenne <- data_susp %>%
+  group_by(Study_Site, Station, Time_point) %>%
+  summarise(across(starts_with("Masse_"), mean, na.rm = TRUE), .groups = "drop")
+
+# 3. Format long
+data_long <- data_moyenne %>%
+  pivot_longer(cols = starts_with("Masse_"),
+               names_to = "Type_masse",
+               values_to = "Valeur_masse") %>%
+  filter(Type_masse != "Masse_total") %>%
+  mutate(
+    # Traduction des noms de masse
+    Type_masse = recode(Type_masse,
+                        "Masse_feuilles" = "Leaves",
+                        "Masse_bois"     = "Wood",
+                        "Masse_racines"  = "Roots",
+                        "Masse_fleurs"   = "Flowers",
+                        "Masse_fruits"   = "Fruits"
+    ),
+    # ID combiné pour les barres groupées
+    Station_TP = paste(Station, Time_point, sep = "_")
+  )
+
+# 4. Définir l'ordre des barres pour bon affichage
+data_long <- data_long %>%
+  mutate(Station_TP = factor(Station_TP, levels = unique(Station_TP)))
+
+# 5. Palette manuelle
+couleurs_masses <- c(
+  "Leaves"  = "#90ee90",   # vert clair
+  "Wood"    = "#8B4513",   # marron
+  "Roots"   = "#000000",   # noir
+  "Flowers" = "#ffb6c1",   # rose pâle
+  "Fruits"  = "#006400"    # vert foncé
+)
+
+# 6. Stats Tukey
+
+# 6.1 Data pour l'analyse
+data_stats <- data_susp %>%
+  dplyr::select(Study_Site, Station, Time_point, Masse_total) %>%
+  mutate(Station_TP = interaction(Station, Time_point,sep="_"))
+
+# 6.2 ANOVA à 1 facteur : combinaisons Station-TimePoint +  Test post-hoc Tukey
+anova_result <- aov(Masse_total ~ Station_TP, data = data_stats)
+summary(anova_result)
+
+tukey_result <- TukeyHSD(anova_result)
+print(tukey_result)
+
+# 6.3 Convertir le résultat en lettres de groupe
+tukey_letters <- multcompView::multcompLetters(tukey_result$Station_TP[,"p adj"])
+lettres_df <- data.frame(
+  Station_TP = names(tukey_letters$Letters),
+  lettre = tukey_letters$Letters
+)
+
+# 6.4 Calcul de la masse totale moyenne par groupe
+totaux_moyens <- data_stats %>%
+  group_by(Station_TP) %>%
+  summarise(masse_tot = mean(Masse_total, na.rm = TRUE), .groups = "drop")
+
+# 6.5 Fusionner lettres et masse moyenne
+annotation_data <- left_join(totaux_moyens, lettres_df, by = "Station_TP")
+
+
+# 7. Fonction graphique
+
+make_plot <- function(site_name, plot_title) {
+  data_site <- data_long %>%
+    filter(Study_Site == site_name)
+  
+  annotations_site <- annotation_data %>%
+    filter(Station_TP %in% unique(data_site$Station_TP))
+  
+  # Harmonisation des niveaux
+  data_site$Station_TP <- factor(data_site$Station_TP, levels = unique(data_site$Station_TP))
+  annotations_site$Station_TP <- factor(annotations_site$Station_TP, levels = levels(data_site$Station_TP))
+  
+  # Labels Time_point
+  x_labels <- data_site %>%
+    distinct(Station_TP, Time_point) %>%
+    arrange(factor(Station_TP, levels = levels(data_site$Station_TP))) %>%
+    pull(Time_point)
+  
+  # Coordonnées des groupes de barres par station
+  station_groups <- data_site %>%
+    distinct(Station, Station_TP) %>%
+    mutate(pos = as.numeric(factor(Station_TP))) %>%
+    group_by(Station) %>%
+    summarise(xmin = min(pos) - 0.5,
+              xmax = max(pos) + 0.5,
+              xcenter = mean(pos),
+              .groups = "drop")
+  
+  # Palette douce pour fonds de groupes 
+  fond_couleurs <- c("#f0f9e8", "#ccebc5", "#e0ecf4", "#f7f7f7", "#fde0dd") 
+  
+  ggplot(data_site, aes(x = Station_TP, y = Valeur_masse, fill = Type_masse)) +
+    # FOND par groupe
+    geom_rect(data = station_groups,
+              aes(xmin = xmin, xmax = xmax, ymin = -Inf, ymax = Inf, fill = NULL),
+              inherit.aes = FALSE,
+              fill = rep(fond_couleurs, length.out = nrow(station_groups)),
+              alpha = 0.3) +
+    # Barres empilées
+    geom_bar(stat = "identity", width = 0.7) +
+    # Lettres Tukey
+    geom_text(data = annotations_site,
+              aes(x = Station_TP, y = masse_tot * 1.05, label = lettre),
+              inherit.aes = FALSE, size = 3, vjust = 0) +
+    scale_fill_manual(values = couleurs_masses, name = "Dry Mass") +
+    scale_x_discrete(labels = x_labels) +
+    labs(title = plot_title, y = "Mean dry mass (g)", x = NULL) +
+    theme_minimal() +
+    coord_cartesian(clip = "off") +
+    theme(
+      axis.text.x = element_text(angle = 0, hjust = 0.5),
+      legend.position = "bottom",
+      plot.title = element_text(hjust = 0.5),
+      plot.margin = margin(20, 20, 40, 20)
+    ) +
+    # Annotation des groupes sous les barres
+    annotate("segment",
+             x = station_groups$xmin+0.1,
+             xend = station_groups$xmax-0.1,
+             y = -5, yend = -5,
+             size = 0.7) +
+    annotate("text",
+             x = station_groups$xcenter,
+             y = -7,
+             label = station_groups$Station,
+             size = 4)
+  
+}
+
+
+# 8. Créer les graphes
+plot_babin <- make_plot("Babin", "Babin")
+plot_rs    <- make_plot("RS", "Rivière Salée")
+
+# 9. Affichage avec patchwork
+combined_plot<- plot_babin / plot_rs + plot_layout(guides = "collect")
+
+#Interprétation des lettres :
+# Chaque groupe (barre) est associé à une ou plusieurs lettres (a, b, c, etc.) :
+# Groupes avec la même lettre → pas de différence significative entre eux.
+# Groupes avec des lettres différentes → différence significative à α = 0.05 (par défaut).
+
+# 10. Exporter en .tex
+tikz("Chapitre_Bio/plot_traps.tex", standAlone = TRUE, width = 10, height = 7) #change directory if necessary
+
+print(combined_plot)
+
+dev.off()
